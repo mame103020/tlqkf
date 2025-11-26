@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>노래 맞추기 게임</title>
+
+  <style>
+    body {
+      font-family: "Pretendard", Arial, sans-serif;
+      text-align: center;
+      padding: 28px;
+      background: #f3f6fb;
+      color: #2c3e50;
+    }
+
+    .container {
+      max-width: 720px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      font-size: 34px;
+      margin-bottom: 14px;
+      font-weight: 700;
+    }
+
+    #playBtn {
+      background: #6c5ce7;
+      color: white;
+      border: none;
+      padding: 14px 28px;
+      font-size: 20px;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: 0.25s;
+      box-shadow: 0 6px 14px rgba(108,92,231,0.18);
+      margin-bottom: 16px;
+    }
+    #playBtn:hover {
+      background: #5a4bd6;
+      transform: translateY(-2px);
+    }
+    #playBtn.disabled {
+      background: #aaa;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    .option {
+      background: white;
+      border: none;
+      padding: 14px;
+      margin: 12px auto;
+      width: 72%;
+      max-width: 520px;
+      font-size: 18px;
+      border-radius: 14px;
+      cursor: pointer;
+      transition: 0.18s;
+      box-shadow: 0 6px 14px rgba(0,0,0,0.08);
+      text-align: left;
+    }
+    .option:hover {
+      background: #eef2ff;
+      transform: translateY(-3px);
+    }
+
+    #result {
+      margin-top: 18px;
+      font-size: 24px;
+      font-weight: 600;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    #result.show {
+      opacity: 1;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🎵 노래 맞추기 게임</h1>
+
+    <button id="playBtn">▶ 노래 재생하기</button>
+
+    <div id="options"></div>
+
+    <p id="result"></p>
+  </div>
+
+  <script>
+    /* 제목 = 풀네임, 파일 = 1~5.mp3 */
+    const songs = [
+      { title: "슈베르트 피아노5중주 송어 4악장",  file: "1.mp3", start: 10 },
+      { title: "쇼팽 녹턴 op.9 No.2",             file: "2.mp3", start: 15 },
+      { title: "리스트 라 캄파넬라",               file: "3.mp3", start: 6  },
+      { title: "그리그 페르 귄트 - 아침",          file: "4.mp3", start: 0  },
+      { title: "드뷔시 목신의 오후 전주곡",         file: "5.mp3", start: 0  }
+    ];
+
+    let currentSong = null;
+    let audio = new Audio();
+    audio.preload = 'auto';
+
+    const playBtn = document.getElementById("playBtn");
+    const optionsDiv = document.getElementById("options");
+    const result = document.getElementById("result");
+
+    let isTransitioning = false;
+    let songQueue = [];
+
+    function shuffle(arr) {
+      return [...arr].sort(() => Math.random() - 0.5);
+    }
+
+    function refillQueueIfNeeded() {
+      if (songQueue.length === 0) {
+        songQueue = shuffle(songs.slice());
+      }
+    }
+
+    function loadQuiz() {
+      isTransitioning = false;
+      playBtn.disabled = false;
+      playBtn.classList.remove("disabled");
+
+      result.textContent = "";
+      result.classList.remove("show");
+
+      refillQueueIfNeeded();
+      currentSong = songQueue.shift();
+
+      let optionsPool = shuffle(songs).slice(0, 4);
+      if (!optionsPool.find(o => o.title === currentSong.title)) {
+        optionsPool[0] = currentSong;
+      }
+      optionsPool = shuffle(optionsPool);
+
+      optionsDiv.innerHTML = "";
+      optionsPool.forEach(opt => {
+        const btn = document.createElement("button");
+        btn.textContent = opt.title;
+        btn.className = "option";
+        btn.onclick = () => { if (!isTransitioning) checkAnswer(opt); };
+        optionsDiv.appendChild(btn);
+      });
+    }
+
+    /* 정답일 때 음악 완전 정지버전 */
+    function checkAnswer(selectedOption) {
+      isTransitioning = true;
+      playBtn.disabled = true;
+      playBtn.classList.add("disabled");
+
+      // 음악 끄기
+      try { audio.pause(); } catch(e){}
+      audio.currentTime = 0;
+
+      /* 🔥 음악 완전 정지 — 소스 제거 */
+      audio.src = "";
+      audio.removeAttribute("src");
+
+      // 정답/오답 표시
+      if (selectedOption.title === currentSong.title) {
+        result.textContent = "🎉 정답!";
+        result.style.color = "#2ecc71";
+      } else {
+        result.textContent = `❌ 오답! 정답은 👉 "${currentSong.title}"`;
+        result.style.color = "#e74c3c";
+      }
+
+      result.classList.add("show");
+
+      setTimeout(loadQuiz, 1500);
+    }
+
+    function playCurrentSong() {
+      if (!currentSong) return;
+      if (isTransitioning) return;
+
+      audio.pause();
+      audio = new Audio();
+      audio.preload = 'auto';
+      audio.src = encodeURI(currentSong.file);
+      audio.currentTime = currentSong.start || 0;
+
+      audio.onerror = () => {
+        result.textContent = '오류: 음원 재생 불가 (파일 이름 확인).';
+        result.style.color = '#e74c3c';
+        result.classList.add("show");
+      };
+
+      audio.addEventListener('canplaythrough', () => {
+        audio.play().catch(() => {
+          result.textContent = '브라우저가 재생을 막았습니다. 다시 눌러주세요.';
+          result.style.color = '#e67e22';
+          result.classList.add("show");
+        });
+      });
+
+      audio.load();
+    }
+
+    playBtn.onclick = () => {
+      if (!isTransitioning) playCurrentSong();
+    };
+
+    refillQueueIfNeeded();
+    loadQuiz();
+  </script>
+</body>
+</html>
